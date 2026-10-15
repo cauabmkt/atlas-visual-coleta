@@ -1022,5 +1022,64 @@ src="https://www.facebook.com/tr?id=2276355429881083&ev=PageView&noscript=1"
   t.style.setProperty('--dur',(t.children.length/2*7)+'s');
 })();
 </script>
+<script>
+/* Repassa UTMs (e demais parâmetros de campanha) da página para os links do checkout GGCheckout */
+(function(){
+  var KEY='atlas_tracking_params', HOST='ggcheckout.app';
+
+  function parse(qs){
+    var o={}; if(!qs) return o;
+    qs.replace(/^\?/,'').split('&').forEach(function(p){
+      if(!p) return;
+      var i=p.indexOf('='), k=i<0?p:p.slice(0,i), v=i<0?'':p.slice(i+1);
+      try{ k=decodeURIComponent(k.replace(/\+/g,' ')); v=decodeURIComponent(v.replace(/\+/g,' ')); }catch(e){}
+      if(k) o[k]=v;
+    });
+    return o;
+  }
+  function read(store){ try{ return JSON.parse(store.getItem(KEY)||'{}')||{}; }catch(e){ return {}; } }
+  function write(store,o){ try{ store.setItem(KEY,JSON.stringify(o)); }catch(e){} }
+
+  // junta: guardado (sessão + local) e depois o que veio na URL atual (a URL atual tem prioridade)
+  function params(){
+    var saved={}, k, s1={}, s2={};
+    try{ s1=read(window.localStorage); }catch(e){}
+    try{ s2=read(window.sessionStorage); }catch(e){}
+    for(k in s1) saved[k]=s1[k];
+    for(k in s2) saved[k]=s2[k];
+    var cur=parse(window.location.search);
+    var hasNew=false; for(k in cur){ saved[k]=cur[k]; hasNew=true; }
+    if(hasNew){
+      try{ write(window.localStorage,saved); }catch(e){}
+      try{ write(window.sessionStorage,saved); }catch(e){}
+    }
+    return saved;
+  }
+
+  function build(href,p){
+    var hash='', i=href.indexOf('#');
+    if(i>-1){ hash=href.slice(i); href=href.slice(0,i); }
+    var q=href.indexOf('?'), base=q>-1?href.slice(0,q):href, existing=parse(q>-1?href.slice(q):'');
+    var parts=[], k;
+    for(k in existing) parts.push(encodeURIComponent(k)+'='+encodeURIComponent(existing[k]));
+    for(k in p){ if(!(k in existing)) parts.push(encodeURIComponent(k)+'='+encodeURIComponent(p[k])); }
+    return base+(parts.length?'?'+parts.join('&'):'')+hash;
+  }
+
+  function apply(){
+    var p=params(), links=document.querySelectorAll('a[href*="'+HOST+'"]');
+    for(var n=0;n<links.length;n++){
+      var a=links[n], raw=a.getAttribute('href');
+      if(raw) a.setAttribute('href',build(raw,p));
+    }
+  }
+
+  window.__atlasBuildUrl=build; // útil para testes
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply); else apply();
+  // reforça no momento do toque/clique (cobre o botão dentro do popup)
+  ['mousedown','touchstart','click','keydown'].forEach(function(ev){ document.addEventListener(ev,apply,true); });
+})();
+</script>
+
 </body>
 </html>
